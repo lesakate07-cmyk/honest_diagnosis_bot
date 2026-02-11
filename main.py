@@ -141,8 +141,7 @@ async def send_question(callback):
 
 
 @dp.callback_query(F.data.in_(["A", "B", "C"]))
-async def handle_answers(callback: types.CallbackQuery):
-
+async def handle_answer(callback: CallbackQuery):
     user_id = callback.from_user.id
     answer = callback.data
 
@@ -236,4 +235,10 @@ async def show_result(callback: types.CallbackQuery):
     )
 
     await callback.message.edit_text(result_text, reply_markup=keyboard)
-        
+        async def main():
+    print("Бот запущен...")
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())
