@@ -158,8 +158,12 @@ async def handle_answers(callback: types.CallbackQuery):
     if current_question[user_id] < len(questions):
         await send_question(callback)
     else:
-        await show_result(callback)
-        async def show_result(callback: types.CallbackQuery):
+        await show_result(callback))
+        # --------------------------
+# РЕЗУЛЬТАТ
+# --------------------------
+
+async def show_result(callback: types.CallbackQuery):
 
     user_id = callback.from_user.id
     score = user_scores[user_id]
@@ -232,3 +236,4 @@ async def handle_answers(callback: types.CallbackQuery):
     )
 
     await callback.message.edit_text(result_text, reply_markup=keyboard)
+        
