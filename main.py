@@ -225,24 +225,10 @@ async def handle_answers(callback: types.CallbackQuery):
 Ты уже готова.
 """
 
-     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Хочу на 3 дня", url="https://docs.google.com/forms/d/e/1FAIpQLSfeO1aLNGb91QJ-HHC0U0O72Bj94q2AHUJYTHqqnd19TBBBtw/viewform?usp=publish-editor")],
-        [InlineKeyboardButton(text="Пока подумаю", callback_data="later")]
-    ])
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Перейти дальше", callback_data="offer")]
+        ]
+    )
 
-    await callback.message.edit_text(text, reply_markup=keyboard)
-
-@dp.callback_query(F.data == "later")
-async def later(callback: types.CallbackQuery):
-    await callback.message.edit_text("Хорошо 🤍 Возвращайся, когда почувствуешь готовность.")
-
-# --------------------------
-# ЗАПУСК
-# --------------------------
-
-async def main():
-    await start_web_server()
-    await dp.start_polling(bot)
-
-if __name__ == "__main__":
-    asyncio.run(main())
+    await callback.message.edit_text(result_text, reply_markup=keyboard)
