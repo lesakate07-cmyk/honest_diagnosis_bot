@@ -1,6 +1,7 @@
 import asyncio
 import os
-from aiogram import Bot, Dispatcher, types
+from aiogram import Bot, Dispatcher, types, F
+from aiogram.filters import CommandStart
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiohttp import web
 
@@ -24,13 +25,14 @@ async def start_web_server():
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
-    
-# =========================
-# Приветственное сообщение
-# =========================
 
-WELCOME_TEXT = """
-Привет.
+# --------------------------
+# /start
+# --------------------------
+
+@dp.message(CommandStart())
+async def start_handler(message: types.Message):
+    text = """Привет.
 
 Этот бот — не про диагнозы и не про «с тобой что-то не так».
 
@@ -44,6 +46,12 @@ WELCOME_TEXT = """
 Это честная диагностика твоей точки А —
 без оценок, давления и «надо быть другой».
 """
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Начать", callback_data="start_test")]
+    ])
+
+    await message.answer(text, reply_markup=keyboard)
 
 # =========================
 # Вопросы
