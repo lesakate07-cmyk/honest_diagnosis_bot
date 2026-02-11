@@ -228,13 +228,29 @@ async def show_result(callback: CallbackQuery):
 Ты уже готова.
 """
 
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="Перейти дальше", callback_data="offer")]
-        ]
-    )
+    await message.answer(result_text)
 
-    await callback.message.edit_text(result_text, reply_markup=keyboard)
+    await message.answer("""
+Если ты хочешь не просто понять,
+а увидеть истинную причину и свой первый шаг,
+я приглашаю тебя в
+3-дневную диагностику с живыми разборами.
+
+Это не марафон.
+Это точная настройка перед большими изменениями.
+""", reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Хочу на 3 дня", url="ССЫЛКА_НА_ГУГЛ_ФОРМУ")],
+        [InlineKeyboardButton(text="Пока подумаю", callback_data="later")]
+    ]))
+
+# =========================
+# Кнопка "Пока подумаю"
+# =========================
+
+@dp.callback_query(F.data == "later")
+async def later(callback: CallbackQuery):
+    await callback.answer()
+    await callback.message.answer("Хорошо 🤍 Возвращайся, когда почувствуешь готовность.")
 
 
 # --------------------------
