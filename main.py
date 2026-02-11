@@ -140,6 +140,10 @@ async def send_question(callback):
     await callback.message.edit_text(text, reply_markup=keyboard)
 
 
+# --------------------------
+# ОБРАБОТКА ОТВЕТОВ
+# --------------------------
+
 @dp.callback_query(F.data.in_(["A", "B", "C"]))
 async def handle_answer(callback: CallbackQuery):
     user_id = callback.from_user.id
@@ -158,18 +162,18 @@ async def handle_answer(callback: CallbackQuery):
         await send_question(callback)
     else:
         await show_result(callback)
-        # --------------------------
+
+
+# --------------------------
 # РЕЗУЛЬТАТ
 # --------------------------
 
-async def show_result(callback: types.CallbackQuery):
-
+async def show_result(callback: CallbackQuery):
     user_id = callback.from_user.id
     score = user_scores[user_id]
 
     if score <= 11:
-        result_text = """🔵 РЕЗУЛЬТАТ
-«Жизнь на автопилоте»
+        result_text = """🔵 РЕЗУЛЬТАТ «Жизнь на автопилоте»
 
 Сейчас ты живёшь больше из «надо», чем из «хочу».
 
@@ -186,13 +190,10 @@ async def show_result(callback: types.CallbackQuery):
 Ты не потеряна.
 Ты просто давно не останавливалась.
 
-И честный вопрос «А я где?» —
-уже первый шаг.
+И честный вопрос «А я где?» — уже первый шаг.
 """
-
     elif score <= 16:
-        result_text = """🟡 РЕЗУЛЬТАТ
-«Переходное состояние»
+        result_text = """🟡 РЕЗУЛЬТАТ «Переходное состояние»
 
 Ты уже чувствуешь,
 что старые сценарии больше не работают.
@@ -208,10 +209,8 @@ async def show_result(callback: types.CallbackQuery):
 либо начать движение —
 из себя, а не из ожиданий других.
 """
-
     else:
-        result_text = """🟢 РЕЗУЛЬТАТ
-«Готовность к изменениям»
+        result_text = """🟢 РЕЗУЛЬТАТ «Готовность к изменениям»
 
 У тебя есть чувствительность к себе.
 Есть глубина.
@@ -221,8 +220,7 @@ async def show_result(callback: types.CallbackQuery):
 Ты в осознании.
 
 Но чтобы пойти дальше спокойно,
-нужна структура,
-поддержка
+нужна структура, поддержка
 и правильная настройка фокуса.
 
 Ты уже готова.
@@ -235,10 +233,18 @@ async def show_result(callback: types.CallbackQuery):
     )
 
     await callback.message.edit_text(result_text, reply_markup=keyboard)
-        async def main():
+
+
+# --------------------------
+# ЗАПУСК БОТА
+# --------------------------
+
+async def main():
     print("Бот запущен...")
     await dp.start_polling(bot)
+
 
 if __name__ == "__main__":
     import asyncio
     asyncio.run(main())
+
