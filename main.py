@@ -158,7 +158,7 @@ async def handle_answers(callback: types.CallbackQuery):
     if current_question[user_id] < len(questions):
         await send_question(callback)
     else:
-        await show_result(callback))
+        await show_result(callback)
         # --------------------------
 # РЕЗУЛЬТАТ
 # --------------------------
