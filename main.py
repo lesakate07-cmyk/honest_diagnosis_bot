@@ -168,7 +168,7 @@ async def send_result(message: Message, answers):
 Это не марафон.
 Это точная настройка перед большими изменениями.
 """, reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Хочу на 3 дня", url="ССЫЛКА_НА_ГУГЛ_ФОРМУ")],
+        [InlineKeyboardButton(text="Хочу на 3 дня", url="https://docs.google.com/forms/d/e/1FAIpQLSfeO1aLNGb91QJ-HHC0U0O72Bj94q2AHUJYTHqqnd19TBBBtw/viewform?usp=publish-editor")],
         [InlineKeyboardButton(text="Пока подумаю", callback_data="later")]
     ]))
 
