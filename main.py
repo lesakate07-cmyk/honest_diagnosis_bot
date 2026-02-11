@@ -1,13 +1,13 @@
 import asyncio
 import os
-from aiogram import Bot, Dispatcher, types, F
-from aiogram.filters import CommandStart
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from aiohttp import web
+from aiogram import Bot, Dispatcher
 
-TOKEN = os.getenv("BOT_TOKEN")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
-bot = Bot(token=TOKEN)
+if not BOT_TOKEN:
+    raise ValueError("BOT_TOKEN не найден!")
+
+bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 user_scores = {}
