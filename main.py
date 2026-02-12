@@ -114,62 +114,6 @@ C — Готовность двигаться.
 """
 ]
 
-current_question = {}
-@dp.callback_query(F.data == "q1")
-async def start_questions(callback: types.CallbackQuery):
-
-    user_scores[callback.from_user.id] = 0
-    current_question[callback.from_user.id] = 0
-
-    await send_question(callback)
-
-
-async def send_question(callback):
-
-    user_id = callback.from_user.id
-    q_index = current_question[user_id]
-
-    text = questions[q_index]
-
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="A", callback_data="A"),
-            InlineKeyboardButton(text="B", callback_data="B"),
-            InlineKeyboardButton(text="C", callback_data="C"),
-        ]
-    ])
-
-    await callback.message.edit_text(text, reply_markup=keyboard)
-
-
-# --------------------------
-# ОБРАБОТКА ОТВЕТОВ
-# --------------------------
-
-@dp.callback_query(F.data.in_(["A", "B", "C"]))
-async def handle_answer(callback: CallbackQuery):
-    user_id = callback.from_user.id
-    answer = callback.data
-
-    if answer == "A":
-        user_scores[user_id] += 1
-    elif answer == "B":
-        user_scores[user_id] += 2
-    else:
-        user_scores[user_id] += 3
-
-    current_question[user_id] += 1
-
-    if current_question[user_id] < len(questions):
-        await send_question(callback)
-    else:
-        await show_result(callback)
-
-
-# --------------------------
-# РЕЗУЛЬТАТ
-# --------------------------
-
 async def show_result(callback: CallbackQuery):
     user_id = callback.from_user.id
     score = user_scores[user_id]
@@ -228,9 +172,10 @@ async def show_result(callback: CallbackQuery):
 Ты уже готова.
 """
 
-    await message.answer(result_text)
+    await callback.message.answer(result_text)
 
-    await message.answer("""
+    await callback.message.answer(
+        """
 Если ты хочешь не просто понять,
 а увидеть истинную причину и свой первый шаг,
 я приглашаю тебя в
@@ -238,21 +183,14 @@ async def show_result(callback: CallbackQuery):
 
 Это не марафон.
 Это точная настройка перед большими изменениями.
-""", reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Хочу на 3 дня", url="ССЫЛКА_НА_ГУГЛ_ФОРМУ")],
-        [InlineKeyboardButton(text="Пока подумаю", callback_data="later")]
-    ]))
-
-# =========================
-# Кнопка "Пока подумаю"
-# =========================
-
-@dp.callback_query(F.data == "later")
-async def later(callback: CallbackQuery):
-    await callback.answer()
-    await callback.message.answer("Хорошо 🤍 Возвращайся, когда почувствуешь готовность.")
-
-
+""",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Хочу на 3 дня", url="ССЫЛКА_НА_ГУГЛ_ФОРМУ")],
+            [InlineKeyboardButton(text="Пока подумаю", callback_data="later")]
+        ])
+    )
+user_scores.pop(user_id, None)
+    current_question.pop(user_id, None)
 # --------------------------
 # ЗАПУСК БОТА
 # --------------------------
