@@ -253,3 +253,17 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+    import threading, time, requests, os
+
+def keep_alive():
+    while True:
+        try:
+            url = os.environ.get("RENDER_EXTERNAL_URL")
+            if url:
+                requests.get(url)
+                print(f"Pinged {url}")
+        except Exception as e:
+            print("Ping error:", e)
+        time.sleep(600)  # каждые 10 минут
+
+threading.Thread(target=keep_alive, daemon=True).start()
