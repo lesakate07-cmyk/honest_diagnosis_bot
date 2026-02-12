@@ -189,7 +189,9 @@ async def show_result(callback: CallbackQuery):
             [InlineKeyboardButton(text="Пока подумаю", callback_data="later")]
         ])
     )
-user_scores.pop(user_id, None)
+
+    # очистка данных пользователя
+    user_scores.pop(user_id, None)
     current_question.pop(user_id, None)
 # --------------------------
 # ЗАПУСК БОТА
