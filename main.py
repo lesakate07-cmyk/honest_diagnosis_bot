@@ -1,3 +1,4 @@
+from aiohttp import web
 import os
 import asyncio
 from aiogram import Bot, Dispatcher, types, F
@@ -241,11 +242,18 @@ async def later(callback: CallbackQuery):
     await callback.answer()
     await callback.message.answer("Хорошо 🤍 Возвращайся, когда почувствуешь готовность.")
 
+async def handle(request):
+    return web.Response(text="OK")
 
-# --------------------------
-# ЗАПУСК БОТА
-# --------------------------
-from aiohttp import web
+async def start_web_server():
+    app = web.Application()
+    app.router.add_get("/", handle)
+    port = int(os.environ.get("PORT", 10000))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+
 async def main():
     print("Бот запущен...")
     await asyncio.gather(
@@ -253,16 +261,5 @@ async def main():
         dp.start_polling(bot)
     )
 
-async def handle(request):
-    return web.Response(text="OK")
-
-async def start_web_server():
-    app = web.Application()
-    app.router.add_get("/", handle)
-
-    port = int(os.environ.get("PORT", 10000))
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", port)
-    await site.start()
-threading.Thread(target=keep_alive, daemon=True).start()
+if __name__ == "__main__":
+    asyncio.run(main())
