@@ -205,8 +205,6 @@ async def send_question(callback: CallbackQuery):
     text = questions[q_index]
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [
-            keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [
         InlineKeyboardButton(text="A", callback_data="A"),
         InlineKeyboardButton(text="B", callback_data="B"),
