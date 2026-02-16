@@ -234,21 +234,26 @@ async def handle_answer(callback: CallbackQuery):
     user_id = callback.from_user.id
     answer = callback.data
 
+    # начисляем баллы
     if answer == "A":
-    user_scores[user_id] += 1
-elif answer == "B":
-    user_scores[user_id] += 2
-elif answer == "C":
-    user_scores[user_id] += 3
-else:  # D
-    user_scores[user_id] += 4
+        user_scores[user_id] += 1
+    elif answer == "B":
+        user_scores[user_id] += 2
+    elif answer == "C":
+        user_scores[user_id] += 3
+    else:  # D
+        user_scores[user_id] += 4
 
+    # следующий вопрос
     current_question[user_id] += 1
 
     if current_question[user_id] < len(questions):
         await send_question(callback)
     else:
         await show_result(callback)
+        asyncio.create_task(send_followup_in_one_hour(user_id))  # ⬅️ напоминание через час
+
+    await callback.answer()
 
 
 # --------------------------
