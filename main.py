@@ -324,16 +324,16 @@ async def show_result(callback: CallbackQuery):
 
     # 2) отправляем оффер (как у тебя)
     await callback.message.answer(
-        """Если ты хочешь не просто понять,
+        """🤍Если ты хочешь не просто понять,
 а увидеть истинную причину и свой первый шаг,
 я приглашаю тебя в
 3-дневную диагностику с живыми разборами.
 
-Это не марафон.
+❕Это не марафон.
 Это точная настройка перед большими изменениями.
 """,
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="Хочу на 3 дня", url="ССЫЛКА_НА_ГУГЛ_ФОРМУ")],
+            [InlineKeyboardButton(text="Хочу на 3 дня", url="https://docs.google.com/forms/d/e/1FAIpQLSfeO1aLNGb91QJ-HHC0U0O72Bj94q2AHUJYTHqqnd19TBBBtw/viewform?usp=publish-editor")],
             [InlineKeyboardButton(text="Пока подумаю", callback_data="later")]
         ])
     )
