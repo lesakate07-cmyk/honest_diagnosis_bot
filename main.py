@@ -201,17 +201,18 @@ async def start_questions(callback: CallbackQuery):
 async def send_question(callback: CallbackQuery):
     user_id = callback.from_user.id
     q_index = current_question[user_id]
-
     text = questions[q_index]
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-    [
-        InlineKeyboardButton(text="A", callback_data="A"),
-        InlineKeyboardButton(text="B", callback_data="B"),
-        InlineKeyboardButton(text="C", callback_data="C"),
-        InlineKeyboardButton(text="D", callback_data="D"),
-    ]
-])
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="A", callback_data="A"),
+                InlineKeyboardButton(text="B", callback_data="B"),
+                InlineKeyboardButton(text="C", callback_data="C"),
+                InlineKeyboardButton(text="D", callback_data="D"),
+            ]
+        ]
+    )
 
     await callback.message.edit_text(text, reply_markup=keyboard)
 
