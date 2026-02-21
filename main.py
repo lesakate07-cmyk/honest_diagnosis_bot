@@ -1,3 +1,4 @@
+import traceback
 import os
 import json
 import asyncio
@@ -200,7 +201,7 @@ def create_payment_for_user(user_id: int) -> str:
     }
 
     try:
-        payment = Payment.create(payment_data, idempotence_key=str(uuid.uuid4()))
+        payment = Payment.create(payment_data)
         return payment.confirmation.confirmation_url
 
     except Exception as e:
@@ -210,7 +211,6 @@ def create_payment_for_user(user_id: int) -> str:
         print("exception repr:", repr(e))
         traceback.print_exc()
 
-        # 1) чаще всего response лежит вот тут:
         resp = getattr(e, "response", None)
         if resp is not None:
             try:
@@ -218,17 +218,6 @@ def create_payment_for_user(user_id: int) -> str:
                 print("response.text:", resp.text)
             except Exception:
                 print("response exists but cannot read text")
-
-        # 2) иногда response лежит глубже (например, внутри args)
-        try:
-            if hasattr(e, "args") and e.args:
-                for a in e.args:
-                    r = getattr(a, "response", None)
-                    if r is not None:
-                        print("nested response.status_code:", r.status_code)
-                        print("nested response.text:", r.text)
-        except Exception:
-            pass
 
         raise
 
