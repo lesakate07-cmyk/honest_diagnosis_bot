@@ -357,7 +357,7 @@ async def show_result(callback: CallbackQuery):
 """
 
    # 1) отправляем результат
-await callback.message.answer(result_text)
+    await callback.message.answer(result_text)
 
 # 2) отправляем оффер
 await callback.message.answer(
