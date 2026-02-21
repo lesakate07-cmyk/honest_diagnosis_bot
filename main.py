@@ -265,14 +265,15 @@ async def start_handler(message: Message):
 без оценок, давления и «надо быть другой».
 
 И не забудь подписаться на канал
-"Легко жить Легко" — там много поддержки
+«Легко жить Легко» — там много поддержки
 и практик.
 """
 
-keyboard = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="Начать диагностику", callback_data="q1")],
-    [InlineKeyboardButton(text="Перейти в канал «Легко жить Легко»", url="https://t.me/legkolivelegko")]
-])
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Начать диагностику", callback_data="q1")],
+        [InlineKeyboardButton(text="Перейти в канал «Легко жить Легко»", url="https://t.me/legkolivelegko")]
+    ])
+
     await message.answer(text, reply_markup=keyboard)
 
 
