@@ -380,7 +380,7 @@ async def pay(callback: CallbackQuery):
 
     try:
         pay_url = create_payment_for_user(user_id)
-    except Exception:
+    except Exception as e:
         await callback.message.answer("Не получилось создать оплату. Попробуй чуть позже 🤍")
         return
 
@@ -389,7 +389,6 @@ async def pay(callback: CallbackQuery):
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="Перейти к оплате", url=pay_url)]
         ])
-    )
     )
 
     # 3) запускаем отложенное сообщение на 1 час (НЕ await!)
