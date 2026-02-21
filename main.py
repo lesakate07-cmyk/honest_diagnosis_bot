@@ -1,7 +1,9 @@
-import traceback
 import os
+import re
 import json
+import uuid
 import asyncio
+import traceback
 from aiohttp import web
 
 from yookassa import Configuration, Payment
@@ -34,6 +36,7 @@ Configuration.secret_key = YOOKASSA_SECRET_KEY
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
+
 
 # =========================
 # ПАМЯТЬ
@@ -76,7 +79,6 @@ FOLLOWUP_TEXT = """Как перестать жить на автопилоте 
 А если пока не время — просто сохрани это ощущение.
 Ты уже начала путь к себе 🤍
 """
-
 
 questions = [
 """1. Когда ты просыпаешься утром, что ты чувствуешь чаще всего?
@@ -189,10 +191,11 @@ D — Готовность расти и менять свою жизнь
 # =========================
 # ОПЛАТА: создание платежа
 # =========================
-from yookassa import Payment
-import uuid
-
 def create_payment_for_user(user_id: int, customer_email: str) -> str:
+    """
+    Создаёт платеж в YooKassa и возвращает confirmation_url.
+    Важно: для РФ часто нужен receipt (чек). Без него будет 400: Receipt is missing or illegal
+    """
     payment_data = {
         "amount": {"value": "2900.00", "currency": "RUB"},
         "confirmation": {"type": "redirect", "return_url": f"{BASE_URL}/thanks"},
@@ -200,43 +203,31 @@ def create_payment_for_user(user_id: int, customer_email: str) -> str:
         "description": "3-дневная диагностика «Легко жить Легко»",
         "metadata": {"tg_user_id": str(user_id)},
         "receipt": {
-            "customer": {
-                "email": customer_email
-            },
+            "customer": {"email": customer_email},
             "items": [
                 {
                     "description": "Участие в 3-дневной диагностике «Легко жить Легко»",
                     "quantity": "1.00",
-                    "amount": {
-                        "value": "2900.00",
-                        "currency": "RUB"
-                    },
+                    "amount": {"value": "2900.00", "currency": "RUB"},
                     "vat_code": 1,
                     "payment_subject": "service",
-                    "payment_mode": "full_payment"
+                    "payment_mode": "full_payment",
                 }
-            ]
-        }
+            ],
+        },
     }
 
-    payment = Payment.create(payment_data)
-    return payment.confirmation.confirmation_url
-
+    try:
+        # идемпотентность: чтобы при повторном нажатии не создать 10 платежей
+        idem_key = str(uuid.uuid4())
+        payment = Payment.create(payment_data, idem_key)
+        return payment.confirmation.confirmation_url
     except Exception as e:
         print("\n=== YooKassa Payment.create ERROR ===")
         print("BASE_URL:", BASE_URL)
         print("payload:", payment_data)
         print("exception repr:", repr(e))
         traceback.print_exc()
-
-        resp = getattr(e, "response", None)
-        if resp is not None:
-            try:
-                print("response.status_code:", resp.status_code)
-                print("response.text:", resp.text)
-            except Exception:
-                print("response exists but cannot read text")
-
         raise
 
 
@@ -277,7 +268,6 @@ async def start_handler(message: Message):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Начать", callback_data="q1")]
     ])
-
     await message.answer(text, reply_markup=keyboard)
 
 
@@ -295,7 +285,7 @@ async def start_questions(callback: CallbackQuery):
 
 async def send_question(callback: CallbackQuery):
     user_id = callback.from_user.id
-    q_index = current_question[user_id]
+    q_index = current_question.get(user_id, 0)
     text = questions[q_index]
 
     keyboard = InlineKeyboardMarkup(
@@ -309,7 +299,11 @@ async def send_question(callback: CallbackQuery):
         ]
     )
 
-    await callback.message.edit_text(text, reply_markup=keyboard)
+    # edit_text иногда падает "message is not modified" — перехватим безопасно
+    try:
+        await callback.message.edit_text(text, reply_markup=keyboard)
+    except Exception:
+        await callback.message.answer(text, reply_markup=keyboard)
 
 
 @dp.callback_query(F.data.in_(["A", "B", "C", "D"]))
@@ -338,7 +332,6 @@ async def handle_answer(callback: CallbackQuery):
         await send_question(callback)
     else:
         await show_result(callback)
-        # запуск напоминания через час — один раз, здесь
         asyncio.create_task(send_followup_in_one_hour(user_id))
 
     await callback.answer()
@@ -406,15 +399,12 @@ async def show_result(callback: CallbackQuery):
 Ты уже созрела для следующего шага.
 """
 
-    # 1) результат
     await callback.message.answer(result_text)
 
-    # 2) оффер
     await callback.message.answer(
         """🤍Если ты хочешь не просто понять,
-а увидеть истинную причину и свой первый
-шаг, приглашаем тебя в 3-дневную
-диагностику с живыми разборами.
+а увидеть истинную причину и свой первый шаг,
+приглашаем тебя в 3-дневную диагностику с живыми разборами.
 
 ❕Это не марафон.
 Это точная настройка перед большими изменениями.
@@ -425,7 +415,7 @@ async def show_result(callback: CallbackQuery):
         ])
     )
 
-    # очищаем данные теста (платёж отдельно)
+    # очищаем данные теста
     user_scores.pop(user_id, None)
     current_question.pop(user_id, None)
 
@@ -439,6 +429,9 @@ async def later(callback: CallbackQuery):
     await callback.message.answer("Хорошо 🤍 Возвращайся, когда почувствуешь готовность.")
 
 
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
 @dp.callback_query(F.data == "pay")
 async def pay(callback: CallbackQuery):
     await callback.answer()
@@ -447,13 +440,37 @@ async def pay(callback: CallbackQuery):
     pending_email_for_payment.add(user_id)
 
     await callback.message.answer(
-        "Отлично 🤍\n\nЧтобы создать оплату, напиши, пожалуйста, *email для чека* (пример: name@gmail.com).\n\n"
+        "Отлично 🤍\n\n"
+        "Чтобы создать оплату, напиши, пожалуйста, *email для чека* (пример: name@gmail.com).\n\n"
         "Я использую его только для отправки чека от ЮKassa.",
         parse_mode="Markdown"
     )
+
+
+@dp.message()
+async def catch_email_for_payment(message: Message):
+    user_id = message.from_user.id
+
+    if user_id not in pending_email_for_payment:
         return
 
-    await callback.message.answer(
+    email = (message.text or "").strip()
+
+    if not EMAIL_RE.match(email):
+        await message.answer("Кажется, это не похоже на email 🙈\nНапиши в формате: name@gmail.com")
+        return
+
+    pending_email_for_payment.discard(user_id)
+
+    try:
+        pay_url = create_payment_for_user(user_id, email)
+    except Exception as e:
+        await message.answer("Не получилось создать оплату. Попробуй чуть позже 🤍")
+        # можно показать кратко причину (если хочешь убрать — удали две строки ниже)
+        await message.answer(f"Тех.ошибка: {repr(e)}")
+        return
+
+    await message.answer(
         "Готово ✅ Нажми и оплати, а сразу после оплаты я пришлю доступ в закрытый канал:",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="Перейти к оплате", url=pay_url)]
@@ -471,7 +488,7 @@ async def yookassa_webhook(request: web.Request):
         return web.Response(status=400, text="Bad JSON")
 
     event = data.get("event")
-    obj = data.get("object", {})
+    obj = data.get("object", {}) or {}
     payment_id = obj.get("id")
 
     # нас интересует только успешная оплата
@@ -487,10 +504,8 @@ async def yookassa_webhook(request: web.Request):
 
     processed_payments.add(payment_id)
 
-    # user_id берём из metadata
     metadata = obj.get("metadata", {}) or {}
     tg_user_id = metadata.get("tg_user_id")
-
     if not tg_user_id:
         return web.Response(status=400, text="no tg_user_id")
 
@@ -507,7 +522,6 @@ async def yookassa_webhook(request: web.Request):
         )
         invite_link = invite.invite_link
     except Exception:
-        # если бот не админ канала — упадёт тут
         invite_link = None
 
     # отправляем доступ в TG
@@ -520,7 +534,9 @@ async def yookassa_webhook(request: web.Request):
         else:
             await bot.send_message(
                 tg_user_id_int,
-                "Оплата прошла ✅\nНо я не смог создать ссылку в канал (скорее всего, бот не админ канала). Напиши, пожалуйста, организатору — и мы дадим доступ вручную 🤍"
+                "Оплата прошла ✅\n"
+                "Но я не смог создать ссылку в канал (скорее всего, бот не админ канала).\n"
+                "Напиши, пожалуйста, организатору — и мы дадим доступ вручную 🤍"
             )
     except Exception:
         pass
@@ -546,38 +562,6 @@ async def start_web_server():
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
-import re
-
-EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-
-@dp.message()
-async def catch_email_for_payment(message: Message):
-    user_id = message.from_user.id
-
-    # если мы НЕ ждём email — не мешаем другим сообщениям
-    if user_id not in pending_email_for_payment:
-        return
-
-    email = (message.text or "").strip()
-
-    if not EMAIL_RE.match(email):
-        await message.answer("Кажется, это не похоже на email 🙈\nНапиши в формате: name@gmail.com")
-        return
-
-    pending_email_for_payment.discard(user_id)
-
-    try:
-        pay_url = create_payment_for_user(user_id, email)
-    except Exception:
-        await message.answer("Не получилось создать оплату. Попробуй чуть позже 🤍")
-        return
-
-    await message.answer(
-        "Готово ✅ Нажми и оплати, а сразу после оплаты я пришлю доступ в закрытый канал:",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="Перейти к оплате", url=pay_url)]
-        ])
-    )
 
 
 async def main():
