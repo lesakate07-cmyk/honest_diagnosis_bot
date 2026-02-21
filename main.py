@@ -192,42 +192,43 @@ import uuid
 
 def create_payment_for_user(user_id: int) -> str:
     payment_data = {
-        "amount": {
-            "value": "2900.00",
-            "currency": "RUB"
-        },
-        "confirmation": {
-            "type": "redirect",
-            "return_url": f"{BASE_URL}/thanks"
-        },
+        "amount": {"value": "2900.00", "currency": "RUB"},
+        "confirmation": {"type": "redirect", "return_url": f"{BASE_URL}/thanks"},
         "capture": True,
         "description": "3-дневная диагностика «Легко жить Легко»",
-        "metadata": {
-            "tg_user_id": str(user_id)
-        }
+        "metadata": {"tg_user_id": str(user_id)},
     }
 
-    # idempotence_key — полезно, чтобы YooKassa не ругалась при повторных кликах
-    idempotence_key = str(uuid.uuid4())
-
     try:
-        payment = Payment.create(payment_data, idempotence_key=idempotence_key)
+        payment = Payment.create(payment_data, idempotence_key=str(uuid.uuid4()))
         return payment.confirmation.confirmation_url
-    except Exception as e:
-        # ВАЖНО: печатаем максимально подробно
-        print("=== YooKassa Payment.create ERROR ===")
-        print("payload:", payment_data)
-        print("BASE_URL:", BASE_URL)
-        print("exception:", repr(e))
 
-        # Если у ошибки есть response — печатаем тело ответа
+    except Exception as e:
+        print("\n=== YooKassa Payment.create ERROR ===")
+        print("BASE_URL:", BASE_URL)
+        print("payload:", payment_data)
+        print("exception repr:", repr(e))
+        traceback.print_exc()
+
+        # 1) чаще всего response лежит вот тут:
         resp = getattr(e, "response", None)
         if resp is not None:
             try:
-                print("status:", resp.status_code)
-                print("body:", resp.text)
+                print("response.status_code:", resp.status_code)
+                print("response.text:", resp.text)
             except Exception:
-                pass
+                print("response exists but cannot read text")
+
+        # 2) иногда response лежит глубже (например, внутри args)
+        try:
+            if hasattr(e, "args") and e.args:
+                for a in e.args:
+                    r = getattr(a, "response", None)
+                    if r is not None:
+                        print("nested response.status_code:", r.status_code)
+                        print("nested response.text:", r.text)
+        except Exception:
+            pass
 
         raise
 
@@ -439,13 +440,9 @@ async def pay(callback: CallbackQuery):
     try:
         pay_url = create_payment_for_user(user_id)
     except Exception as e:
-        # Печатаем ошибку в логи Render
-        print("YooKassa error while creating payment:", repr(e))
-
-        # Показываем короткое сообщение пользователю
         await callback.message.answer(
             "Не удалось создать оплату. Попробуй чуть позже 🤍\n\n"
-            f"Тех.ошибка: {str(e)[:200]}"
+            f"Тех.ошибка: {repr(e)}"
         )
         return
 
