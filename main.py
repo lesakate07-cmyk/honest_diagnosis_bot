@@ -373,7 +373,7 @@ async def show_result(callback: CallbackQuery):
     [InlineKeyboardButton(text="Оплатить участие", callback_data="pay")],
     [InlineKeyboardButton(text="Пока подумаю", callback_data="later")]
 ])
-        @dp.callback_query(F.data == "pay")
+@dp.callback_query(F.data == "pay")
 async def pay(callback: CallbackQuery):
     await callback.answer()
     user_id = callback.from_user.id
