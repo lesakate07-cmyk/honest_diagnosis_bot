@@ -1,92 +1,80 @@
+import os
 import json
+import asyncio
 from aiohttp import web
 
 from yookassa import Configuration, Payment
-from aiohttp import web
-import os
-import asyncio
-from aiogram import Bot, Dispatcher, types, F
+
+from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import CommandStart
 
+
+# =========================
+# ENV
+# =========================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 YOOKASSA_SHOP_ID = os.getenv("YOOKASSA_SHOP_ID")
 YOOKASSA_SECRET_KEY = os.getenv("YOOKASSA_SECRET_KEY")
 TG_CHANNEL_ID = os.getenv("TG_CHANNEL_ID")  # строкой из env
-BASE_URL = os.getenv("BASE_URL")  # например https://xxx.onrender.com
+BASE_URL = os.getenv("BASE_URL")            # например https://xxx.onrender.com
+
+if not BOT_TOKEN:
+    raise ValueError("BOT_TOKEN не найден!")
 
 if not (YOOKASSA_SHOP_ID and YOOKASSA_SECRET_KEY and TG_CHANNEL_ID and BASE_URL):
     raise ValueError("Не хватает env: YOOKASSA_SHOP_ID / YOOKASSA_SECRET_KEY / TG_CHANNEL_ID / BASE_URL")
 
 TG_CHANNEL_ID = int(TG_CHANNEL_ID)
 
-if not BOT_TOKEN:
-    raise ValueError("BOT_TOKEN не найден!")
+# YooKassa config
+Configuration.account_id = YOOKASSA_SHOP_ID
+Configuration.secret_key = YOOKASSA_SECRET_KEY
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
-Configuration.account_id = YOOKASSA_SHOP_ID
-Configuration.secret_key = YOOKASSA_SECRET_KEY
-def create_payment_for_user(user_id: int) -> str:
-    """
-    Создаёт платеж в YooKassa и возвращает ссылку confirmation_url,
-    куда пользователь должен перейти для оплаты.
-    """
-    payment = Payment.create({
-        "amount": {
-            "value": "2900.00",   # <-- поставь свою цену
-            "currency": "RUB"
-        },
-        "confirmation": {
-            "type": "redirect",
-            "return_url": f"{BASE_URL}/thanks"
-        },
-        "capture": True,
-        "description": "3-дневная диагностика «Легко жить Легко»",
-        "metadata": {
-            "tg_user_id": str(user_id)
-        }
-    })
 
-    return payment.confirmation.confirmation_url
-
+# =========================
+# ПАМЯТЬ
+# =========================
 user_scores = {}
 current_question = {}
 
-# --------------------------
-# СТАРТ
-# --------------------------
+# чтобы не отправлять доступ дважды на один и тот же платеж
+processed_payments = set()
 
-@dp.message(CommandStart())
-async def start_handler(message: Message):
-    user_scores[message.from_user.id] = 0
 
-    text = """Доброго времени суток💜.
+# =========================
+# ТЕКСТЫ
+# =========================
+FOLLOWUP_TEXT = """Как перестать жить на автопилоте и начать выбирать себя
 
-Этот бот — не про диагнозы и не про «с тобой что-то не так».
+Если ты читаешь это сообщение, значит внутри уже есть честность.
+Ты увидела своё состояние, свои ответы, свою точку А.
+И, возможно, почувствовала: «как раньше» — больше не хочется.
+Но при этом пока нет ясности, как именно по-другому.
 
-Иногда мы просто живём на автомате.
-Не потому что ленивые.
-А потому что давно не останавливались и не смотрели на себя честно.
+И здесь важно не ещё сильнее напрягаться и «брать себя в руки».
+А наоборот — остановиться и мягко пересобрать себя:
 
-Здесь будет несколько вопросов.
-Отвечай интуитивно.
-Не думая долго.
+— увидеть, куда уходит твоя энергия: в чужие ожидания, усталость, бесконечное «надо»;
+— разобраться, какие внутренние сценарии держат тебя в этом состоянии;
+— понять, почему ты давно живёшь «для всех», но не для себя;
+— восстановить контакт с собой и начать выстраивать жизнь из «хочу», а не из «терплю».
 
-Это честная диагностика твоей точки А —
-без оценок, давления и «надо быть другой».
+Именно для этого и создана 3-дневная диагностика с живыми разборами.
+Это не марафон и не мотивационные речи.
+Это точная, бережная настройка и понимание:
+где ты сейчас, что тебя реально держит — и с чего начать выход к себе.
+
+Если внутри есть отклик на изменения и желание перестать жить на автомате —
+ты можешь посмотреть формат тут:
+👉https://lesakate07-cmyk.github.io/legko-zhit-legko/
+
+А если пока не время — просто сохрани это ощущение.
+Ты уже начала путь к себе 🤍
 """
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Начать", callback_data="q1")]
-    ])
-
-    await message.answer(text, reply_markup=keyboard)
-
-
-# --------------------------
-# ВСЕ ВОПРОСЫ (7 ШТУК)
-# --------------------------
 
 questions = [
 """1. Когда ты просыпаешься утром, что ты чувствуешь чаще всего?
@@ -194,45 +182,73 @@ D — Готовность расти и менять свою жизнь
 (чувствую, что внутри есть потенциал)
 """
 ]
-FOLLOWUP_TEXT = """Как перестать жить на автопилоте и начать выбирать себя
 
-Если ты читаешь это сообщение, значит внутри уже есть честность.
-Ты увидела своё состояние, свои ответы, свою точку А.
-И, возможно, почувствовала: «как раньше» — больше не хочется.
-Но при этом пока нет ясности, как именно по-другому.
 
-И здесь важно не ещё сильнее напрягаться и «брать себя в руки».
-А наоборот — остановиться и мягко пересобрать себя:
+# =========================
+# ОПЛАТА: создание платежа
+# =========================
+def create_payment_for_user(user_id: int) -> str:
+    payment = Payment.create({
+        "amount": {"value": "2900.00", "currency": "RUB"},  # поставь цену
+        "confirmation": {"type": "redirect", "return_url": f"{BASE_URL}/thanks"},
+        "capture": True,
+        "description": "3-дневная диагностика «Легко жить Легко»",
+        "metadata": {"tg_user_id": str(user_id)}
+    })
+    return payment.confirmation.confirmation_url
 
-— увидеть, куда уходит твоя энергия: в чужие ожидания, усталость, бесконечное «надо»;
-— разобраться, какие внутренние сценарии держат тебя в этом состоянии;
-— понять, почему ты давно живёшь «для всех», но не для себя;
-— восстановить контакт с собой и начать выстраивать жизнь из «хочу», а не из «терплю».
 
-Именно для этого и создана 3-дневная диагностика с живыми разборами.
-Это не марафон и не мотивационные речи.
-Это точная, бережная настройка и понимание:
-где ты сейчас, что тебя реально держит — и с чего начать выход к себе.
+# =========================
+# Отложенное сообщение через 1 час
+# =========================
+async def send_followup_in_one_hour(user_id: int):
+    await asyncio.sleep(3600)
+    try:
+        await bot.send_message(user_id, FOLLOWUP_TEXT)
+    except Exception:
+        pass
 
-Если внутри есть отклик на изменения и желание перестать жить на автомате —
-ты можешь посмотреть формат тут:
-👉https://lesakate07-cmyk.github.io/legko-zhit-legko/
 
-А если пока не время — просто сохрани это ощущение.
-Ты уже начала путь к себе 🤍
+# =========================
+# START
+# =========================
+@dp.message(CommandStart())
+async def start_handler(message: Message):
+    user_scores[message.from_user.id] = 0
+
+    text = """Доброго времени суток💜.
+
+Этот бот — не про диагнозы и не про «с тобой что-то не так».
+
+Иногда мы просто живём на автомате.
+Не потому что ленивые.
+А потому что давно не останавливались и не смотрели на себя честно.
+
+Здесь будет несколько вопросов.
+Отвечай интуитивно.
+Не думая долго.
+
+Это честная диагностика твоей точки А —
+без оценок, давления и «надо быть другой».
 """
 
-# --------------------------
-# НАЧАЛО ВОПРОСОВ
-# --------------------------
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Начать", callback_data="q1")]
+    ])
 
+    await message.answer(text, reply_markup=keyboard)
+
+
+# =========================
+# ВОПРОСЫ
+# =========================
 @dp.callback_query(F.data == "q1")
 async def start_questions(callback: CallbackQuery):
     user_id = callback.from_user.id
     user_scores[user_id] = 0
     current_question[user_id] = 0
-
     await send_question(callback)
+    await callback.answer()
 
 
 async def send_question(callback: CallbackQuery):
@@ -253,50 +269,42 @@ async def send_question(callback: CallbackQuery):
 
     await callback.message.edit_text(text, reply_markup=keyboard)
 
-async def send_followup_in_one_hour(user_id: int):
-    await asyncio.sleep(3600)  # 1 час = 3600 секунд
-    try:
-        await bot.send_message(user_id, FOLLOWUP_TEXT)
-    except Exception:
-        # если пользователь закрыл бота/заблокировал/ошибка сети — просто молча пропускаем
-        pass
-
-
-# --------------------------
-# ОБРАБОТКА ОТВЕТОВ
-# --------------------------
 
 @dp.callback_query(F.data.in_(["A", "B", "C", "D"]))
 async def handle_answer(callback: CallbackQuery):
     user_id = callback.from_user.id
     answer = callback.data
 
-    # начисляем баллы
+    if user_id not in user_scores:
+        user_scores[user_id] = 0
+    if user_id not in current_question:
+        current_question[user_id] = 0
+
+    # баллы
     if answer == "A":
         user_scores[user_id] += 1
     elif answer == "B":
         user_scores[user_id] += 2
     elif answer == "C":
         user_scores[user_id] += 3
-    else:  # D
+    else:
         user_scores[user_id] += 4
 
-    # следующий вопрос
     current_question[user_id] += 1
 
     if current_question[user_id] < len(questions):
         await send_question(callback)
     else:
         await show_result(callback)
-        asyncio.create_task(send_followup_in_one_hour(user_id))  # ⬅️ напоминание через час
+        # запуск напоминания через час — один раз, здесь
+        asyncio.create_task(send_followup_in_one_hour(user_id))
 
     await callback.answer()
 
 
-# --------------------------
+# =========================
 # РЕЗУЛЬТАТ
-# --------------------------
-
+# =========================
 async def show_result(callback: CallbackQuery):
     user_id = callback.from_user.id
     score = user_scores.get(user_id, 0)
@@ -356,12 +364,12 @@ async def show_result(callback: CallbackQuery):
 Ты уже созрела для следующего шага.
 """
 
-   # 1) отправляем результат
+    # 1) результат
     await callback.message.answer(result_text)
 
-# 2) отправляем оффер
-await callback.message.answer(
-    """🤍Если ты хочешь не просто понять,
+    # 2) оффер
+    await callback.message.answer(
+        """🤍Если ты хочешь не просто понять,
 а увидеть истинную причину и свой первый
 шаг, приглашаем тебя в 3-дневную
 диагностику с живыми разборами.
@@ -369,18 +377,25 @@ await callback.message.answer(
 ❕Это не марафон.
 Это точная настройка перед большими изменениями.
 """,
-    reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Оплатить участие", callback_data="pay")],
-        [InlineKeyboardButton(text="Пока подумаю", callback_data="later")]
-    ])
-)
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Оплатить участие", callback_data="pay")],
+            [InlineKeyboardButton(text="Пока подумаю", callback_data="later")]
+        ])
+    )
 
-# 3) запускаем отложенное сообщение на 1 час (НЕ await!)
-asyncio.create_task(send_followup_in_one_hour(user_id))
+    # очищаем данные теста (платёж отдельно)
+    user_scores.pop(user_id, None)
+    current_question.pop(user_id, None)
 
-# 4) очищаем данные пользователя
-user_scores.pop(user_id, None)
-current_question.pop(user_id, None)
+
+# =========================
+# КНОПКИ
+# =========================
+@dp.callback_query(F.data == "later")
+async def later(callback: CallbackQuery):
+    await callback.answer()
+    await callback.message.answer("Хорошо 🤍 Возвращайся, когда почувствуешь готовность.")
+
 
 @dp.callback_query(F.data == "pay")
 async def pay(callback: CallbackQuery):
@@ -399,21 +414,85 @@ async def pay(callback: CallbackQuery):
             [InlineKeyboardButton(text="Перейти к оплате", url=pay_url)]
         ])
     )
-# --------------------------
-# КНОПКА "ПОКА ПОДУМАЮ"
-# --------------------------
 
-@dp.callback_query(F.data == "later")
-async def later(callback: CallbackQuery):
-    await callback.answer()
-    await callback.message.answer("Хорошо 🤍 Возвращайся, когда почувствуешь готовность.")
 
-async def handle(request):
+# =========================
+# YOOKASSA WEBHOOK
+# =========================
+async def yookassa_webhook(request: web.Request):
+    try:
+        data = await request.json()
+    except Exception:
+        return web.Response(status=400, text="Bad JSON")
+
+    event = data.get("event")
+    obj = data.get("object", {})
+    payment_id = obj.get("id")
+
+    # нас интересует только успешная оплата
+    if event != "payment.succeeded":
+        return web.Response(text="ignored")
+
+    if not payment_id:
+        return web.Response(status=400, text="no payment id")
+
+    # защита от дублей
+    if payment_id in processed_payments:
+        return web.Response(text="duplicate")
+
+    processed_payments.add(payment_id)
+
+    # user_id берём из metadata
+    metadata = obj.get("metadata", {}) or {}
+    tg_user_id = metadata.get("tg_user_id")
+
+    if not tg_user_id:
+        return web.Response(status=400, text="no tg_user_id")
+
+    try:
+        tg_user_id_int = int(tg_user_id)
+    except Exception:
+        return web.Response(status=400, text="bad tg_user_id")
+
+    # создаём инвайт-ссылку в закрытый канал
+    try:
+        invite = await bot.create_chat_invite_link(
+            chat_id=TG_CHANNEL_ID,
+            member_limit=1
+        )
+        invite_link = invite.invite_link
+    except Exception:
+        # если бот не админ канала — упадёт тут
+        invite_link = None
+
+    # отправляем доступ в TG
+    try:
+        if invite_link:
+            await bot.send_message(
+                tg_user_id_int,
+                "Оплата прошла ✅ Вот твой доступ в закрытый канал:\n\n" + invite_link
+            )
+        else:
+            await bot.send_message(
+                tg_user_id_int,
+                "Оплата прошла ✅\nНо я не смог создать ссылку в канал (скорее всего, бот не админ канала). Напиши, пожалуйста, организатору — и мы дадим доступ вручную 🤍"
+            )
+    except Exception:
+        pass
+
+    return web.Response(text="ok")
+
+
+# =========================
+# WEB SERVER + POLLING
+# =========================
+async def handle_root(request):
     return web.Response(text="OK")
+
 
 async def start_web_server():
     app = web.Application()
-    app.router.add_get("/", handle)
+    app.router.add_get("/", handle_root)
     app.router.add_post("/yookassa/webhook", yookassa_webhook)
     app.router.add_get("/thanks", lambda r: web.Response(text="Спасибо! Можно возвращаться в Telegram 🙂"))
 
@@ -423,12 +502,14 @@ async def start_web_server():
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
 
+
 async def main():
     print("Бот запущен...")
     await asyncio.gather(
         start_web_server(),
         dp.start_polling(bot)
     )
+
 
 if __name__ == "__main__":
     asyncio.run(main())
