@@ -402,10 +402,17 @@ async def pay(callback: CallbackQuery):
     await callback.answer()
     user_id = callback.from_user.id
 
-    try:
+        try:
         pay_url = create_payment_for_user(user_id)
-    except Exception:
-        await callback.message.answer("Не получилось создать оплату. Попробуй чуть позже 🤍")
+    except Exception as e:
+        # Печатаем в логи Render (самое важное!)
+        print("YooKassa error while creating payment:", repr(e))
+
+        # И показываем пользователю коротко (можно убрать позже)
+        await callback.message.answer(
+            "Не удалось создать оплату. Попробуй чуть позже 🤍\n\n"
+            f"Тех.ошибка: {str(e)[:200]}"
+        )
         return
 
     await callback.message.answer(
