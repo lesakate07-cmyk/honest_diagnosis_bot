@@ -38,6 +38,7 @@ dp = Dispatcher()
 # =========================
 # ПАМЯТЬ
 # =========================
+pending_email_for_payment = set()
 user_scores = {}
 current_question = {}
 
@@ -443,13 +444,13 @@ async def pay(callback: CallbackQuery):
     await callback.answer()
     user_id = callback.from_user.id
 
-    try:
-        pay_url = create_payment_for_user(user_id)
-    except Exception as e:
-        await callback.message.answer(
-            "Не удалось создать оплату. Попробуй чуть позже 🤍\n\n"
-            f"Тех.ошибка: {repr(e)}"
-        )
+    pending_email_for_payment.add(user_id)
+
+    await callback.message.answer(
+        "Отлично 🤍\n\nЧтобы создать оплату, напиши, пожалуйста, *email для чека* (пример: name@gmail.com).\n\n"
+        "Я использую его только для отправки чека от ЮKassa.",
+        parse_mode="Markdown"
+    )
         return
 
     await callback.message.answer(
@@ -545,6 +546,38 @@ async def start_web_server():
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
+import re
+
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+@dp.message()
+async def catch_email_for_payment(message: Message):
+    user_id = message.from_user.id
+
+    # если мы НЕ ждём email — не мешаем другим сообщениям
+    if user_id not in pending_email_for_payment:
+        return
+
+    email = (message.text or "").strip()
+
+    if not EMAIL_RE.match(email):
+        await message.answer("Кажется, это не похоже на email 🙈\nНапиши в формате: name@gmail.com")
+        return
+
+    pending_email_for_payment.discard(user_id)
+
+    try:
+        pay_url = create_payment_for_user(user_id, email)
+    except Exception:
+        await message.answer("Не получилось создать оплату. Попробуй чуть позже 🤍")
+        return
+
+    await message.answer(
+        "Готово ✅ Нажми и оплати, а сразу после оплаты я пришлю доступ в закрытый канал:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Перейти к оплате", url=pay_url)]
+        ])
+    )
 
 
 async def main():
