@@ -187,15 +187,49 @@ D — Готовность расти и менять свою жизнь
 # =========================
 # ОПЛАТА: создание платежа
 # =========================
+from yookassa import Payment
+import uuid
+
 def create_payment_for_user(user_id: int) -> str:
-    payment = Payment.create({
-        "amount": {"value": "2900.00", "currency": "RUB"},  # поставь цену
-        "confirmation": {"type": "redirect", "return_url": f"{BASE_URL}/thanks"},
+    payment_data = {
+        "amount": {
+            "value": "2900.00",
+            "currency": "RUB"
+        },
+        "confirmation": {
+            "type": "redirect",
+            "return_url": f"{BASE_URL}/thanks"
+        },
         "capture": True,
         "description": "3-дневная диагностика «Легко жить Легко»",
-        "metadata": {"tg_user_id": str(user_id)}
-    })
-    return payment.confirmation.confirmation_url
+        "metadata": {
+            "tg_user_id": str(user_id)
+        }
+    }
+
+    # idempotence_key — полезно, чтобы YooKassa не ругалась при повторных кликах
+    idempotence_key = str(uuid.uuid4())
+
+    try:
+        payment = Payment.create(payment_data, idempotence_key=idempotence_key)
+        return payment.confirmation.confirmation_url
+    except Exception as e:
+        # ВАЖНО: печатаем максимально подробно
+        print("=== YooKassa Payment.create ERROR ===")
+        print("payload:", payment_data)
+        print("BASE_URL:", BASE_URL)
+        print("exception:", repr(e))
+
+        # Если у ошибки есть response — печатаем тело ответа
+        resp = getattr(e, "response", None)
+        if resp is not None:
+            try:
+                print("status:", resp.status_code)
+                print("body:", resp.text)
+            except Exception:
+                pass
+
+        raise
 
 
 # =========================
