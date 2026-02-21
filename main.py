@@ -10,12 +10,45 @@ from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKe
 from aiogram.filters import CommandStart
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+YOOKASSA_SHOP_ID = os.getenv("YOOKASSA_SHOP_ID")
+YOOKASSA_SECRET_KEY = os.getenv("YOOKASSA_SECRET_KEY")
+TG_CHANNEL_ID = os.getenv("TG_CHANNEL_ID")  # строкой из env
+BASE_URL = os.getenv("BASE_URL")  # например https://xxx.onrender.com
+
+if not (YOOKASSA_SHOP_ID and YOOKASSA_SECRET_KEY and TG_CHANNEL_ID and BASE_URL):
+    raise ValueError("Не хватает env: YOOKASSA_SHOP_ID / YOOKASSA_SECRET_KEY / TG_CHANNEL_ID / BASE_URL")
+
+TG_CHANNEL_ID = int(TG_CHANNEL_ID)
 
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN не найден!")
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
+Configuration.account_id = YOOKASSA_SHOP_ID
+Configuration.secret_key = YOOKASSA_SECRET_KEY
+def create_payment_for_user(user_id: int) -> str:
+    """
+    Создаёт платеж в YooKassa и возвращает ссылку confirmation_url,
+    куда пользователь должен перейти для оплаты.
+    """
+    payment = Payment.create({
+        "amount": {
+            "value": "2900.00",   # <-- поставь свою цену
+            "currency": "RUB"
+        },
+        "confirmation": {
+            "type": "redirect",
+            "return_url": f"{BASE_URL}/thanks"
+        },
+        "capture": True,
+        "description": "3-дневная диагностика «Легко жить Легко»",
+        "metadata": {
+            "tg_user_id": str(user_id)
+        }
+    })
+
+    return payment.confirmation.confirmation_url
 
 user_scores = {}
 current_question = {}
@@ -337,9 +370,26 @@ async def show_result(callback: CallbackQuery):
 Это точная настройка перед большими изменениями.
 """,
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="Хочу на 3 дня", url="https://docs.google.com/forms/d/e/1FAIpQLSfeO1aLNGb91QJ-HHC0U0O72Bj94q2AHUJYTHqqnd19TBBBtw/viewform?usp=publish-editor")],
-            [InlineKeyboardButton(text="Пока подумаю", callback_data="later")]
+    [InlineKeyboardButton(text="Оплатить участие", callback_data="pay")],
+    [InlineKeyboardButton(text="Пока подумаю", callback_data="later")]
+])
+        @dp.callback_query(F.data == "pay")
+async def pay(callback: CallbackQuery):
+    await callback.answer()
+    user_id = callback.from_user.id
+
+    try:
+        pay_url = create_payment_for_user(user_id)
+    except Exception:
+        await callback.message.answer("Не получилось создать оплату. Попробуй чуть позже 🤍")
+        return
+
+    await callback.message.answer(
+        "Готово ✅ Нажми и оплати, а сразу после оплаты я пришлю доступ в закрытый канал:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Перейти к оплате", url=pay_url)]
         ])
+    )
     )
 
     # 3) запускаем отложенное сообщение на 1 час (НЕ await!)
@@ -364,6 +414,9 @@ async def handle(request):
 async def start_web_server():
     app = web.Application()
     app.router.add_get("/", handle)
+    app.router.add_post("/yookassa/webhook", yookassa_webhook)
+    app.router.add_get("/thanks", lambda r: web.Response(text="Спасибо! Можно возвращаться в Telegram 🙂"))
+
     port = int(os.environ.get("PORT", 10000))
     runner = web.AppRunner(app)
     await runner.setup()
