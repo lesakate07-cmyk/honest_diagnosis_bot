@@ -356,12 +356,12 @@ async def show_result(callback: CallbackQuery):
 Ты уже созрела для следующего шага.
 """
 
-    # 1) отправляем результат
-    await callback.message.answer(result_text)
+   # 1) отправляем результат
+await callback.message.answer(result_text)
 
-    # 2) отправляем оффер (как у тебя)
-    await callback.message.answer(
-        """🤍Если ты хочешь не просто понять,
+# 2) отправляем оффер
+await callback.message.answer(
+    """🤍Если ты хочешь не просто понять,
 а увидеть истинную причину и свой первый
 шаг, приглашаем тебя в 3-дневную
 диагностику с живыми разборами.
@@ -369,10 +369,19 @@ async def show_result(callback: CallbackQuery):
 ❕Это не марафон.
 Это точная настройка перед большими изменениями.
 """,
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="Оплатить участие", callback_data="pay")],
-    [InlineKeyboardButton(text="Пока подумаю", callback_data="later")]
-])
+    reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Оплатить участие", callback_data="pay")],
+        [InlineKeyboardButton(text="Пока подумаю", callback_data="later")]
+    ])
+)
+
+# 3) запускаем отложенное сообщение на 1 час (НЕ await!)
+asyncio.create_task(send_followup_in_one_hour(user_id))
+
+# 4) очищаем данные пользователя
+user_scores.pop(user_id, None)
+current_question.pop(user_id, None)
+
 @dp.callback_query(F.data == "pay")
 async def pay(callback: CallbackQuery):
     await callback.answer()
@@ -380,7 +389,7 @@ async def pay(callback: CallbackQuery):
 
     try:
         pay_url = create_payment_for_user(user_id)
-    except Exception as e:
+    except Exception:
         await callback.message.answer("Не получилось создать оплату. Попробуй чуть позже 🤍")
         return
 
@@ -390,14 +399,6 @@ async def pay(callback: CallbackQuery):
             [InlineKeyboardButton(text="Перейти к оплате", url=pay_url)]
         ])
     )
-
-    # 3) запускаем отложенное сообщение на 1 час (НЕ await!)
-    asyncio.create_task(send_followup_in_one_hour(user_id))
-
-    # 4) очищаем данные пользователя (можно после запуска таймера)
-    user_scores.pop(user_id, None)
-    current_question.pop(user_id, None)
-
 # --------------------------
 # КНОПКА "ПОКА ПОДУМАЮ"
 # --------------------------
