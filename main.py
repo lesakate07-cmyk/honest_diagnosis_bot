@@ -191,18 +191,35 @@ D — Готовность расти и менять свою жизнь
 from yookassa import Payment
 import uuid
 
-def create_payment_for_user(user_id: int) -> str:
+def create_payment_for_user(user_id: int, customer_email: str) -> str:
     payment_data = {
         "amount": {"value": "2900.00", "currency": "RUB"},
         "confirmation": {"type": "redirect", "return_url": f"{BASE_URL}/thanks"},
         "capture": True,
         "description": "3-дневная диагностика «Легко жить Легко»",
         "metadata": {"tg_user_id": str(user_id)},
+        "receipt": {
+            "customer": {
+                "email": customer_email
+            },
+            "items": [
+                {
+                    "description": "Участие в 3-дневной диагностике «Легко жить Легко»",
+                    "quantity": "1.00",
+                    "amount": {
+                        "value": "2900.00",
+                        "currency": "RUB"
+                    },
+                    "vat_code": 1,
+                    "payment_subject": "service",
+                    "payment_mode": "full_payment"
+                }
+            ]
+        }
     }
 
-    try:
-        payment = Payment.create(payment_data)
-        return payment.confirmation.confirmation_url
+    payment = Payment.create(payment_data)
+    return payment.confirmation.confirmation_url
 
     except Exception as e:
         print("\n=== YooKassa Payment.create ERROR ===")
