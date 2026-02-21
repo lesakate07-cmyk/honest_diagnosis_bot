@@ -263,11 +263,16 @@ async def start_handler(message: Message):
 
 Это честная диагностика твоей точки А —
 без оценок, давления и «надо быть другой».
+
+И не забудь подписаться на канал
+"Легко жить Легко" — там много поддержки
+и практик.
 """
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Начать", callback_data="q1")]
-    ])
+keyboard = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="Начать диагностику", callback_data="q1")],
+    [InlineKeyboardButton(text="Перейти в канал «Легко жить Легко»", url="https://t.me/legkolivelegko")]
+])
     await message.answer(text, reply_markup=keyboard)
 
 
