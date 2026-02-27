@@ -408,18 +408,22 @@ async def show_result(callback: CallbackQuery):
     await callback.message.answer(result_text)
 
     await callback.message.answer(
-        """🤍Если ты хочешь не просто понять,
+    """🤍Если ты хочешь не просто понять,
 а увидеть истинную причину и свой первый шаг,
 приглашаем тебя в 3-дневную диагностику с живыми разборами.
 
 ❕Это не марафон.
 Это точная настройка перед большими изменениями.
 """,
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="Оплатить участие", callback_data="pay")],
-            [InlineKeyboardButton(text="Пока подумаю", callback_data="later")]
-        ])
-    )
+    reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Оплатить участие", callback_data="pay")],
+        [InlineKeyboardButton(text="Пока подумаю", callback_data="later")],
+        [InlineKeyboardButton(
+            text="Ознакомиться с программой",
+            url="https://lesakate07-cmyk.github.io/legko-zhit-legko/"
+        )]
+    ])
+)
 
     # очищаем данные теста
     user_scores.pop(user_id, None)
